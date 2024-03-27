@@ -154,15 +154,17 @@ class Player(CapsuleCollidableObject):
         self.explosionCount += 1
         tag = f"particles-{str(self.explosionCount)}"
         
-        self.explodeIntervals[tag] = LerpFunc(self.explodeLight, fromData=0, toData=1, duration=4.0, extraArgs = [impactPoint]) 
+        self.explodeIntervals[tag] = LerpFunc(self.explodeLight, fromData=0, toData=1, duration=2.0, extraArgs=[impactPoint]) 
         #Above Builds animation for explosion
         self.explodeIntervals[tag].start()
     
-    def explodeLight(self, time, explodePosition):
-        if (time == 1.0 and self.explodeEffect):
+    def explodeLight(self, t, explodePosition):
+        if (t == 1.0 and self.explodeEffect): #If 1 second has passed, and there is an explosion taking place
             self.explodeEffect.disable()
-        elif time == 0:
+            print("explosion ended!")
+        elif t == 0:
             self.explodeEffect.start(self.explodeNode)
+            print("explosion started!")
             
     def setParicles(self):
         base.enableParticles()
@@ -170,6 +172,7 @@ class Player(CapsuleCollidableObject):
         self.explodeEffect.loadConfig("./Assets/Part-Efx/basic_xpld_efx.ptf")
         self.explodeEffect.setScale(20)
         self.explodeNode = self.render.attachNewNode("ExplosionEffects")
+        
         
         
     def fire(self):
