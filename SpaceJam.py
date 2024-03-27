@@ -9,7 +9,12 @@ import DefensePaths as defensePaths
 
 class MyApp(ShowBase): 
     def __init__(self):
-        ShowBase.__init__(self) 
+        ShowBase.__init__(self)
+        
+        self.cTrav = CollisionTraverser()
+        self.cTrav.traverse(self.render)
+        self.pusher = CollisionHandlerPusher() #Creates pusher for when two objects touch
+        
         self.setupScene()
         self.setCollisions()
         self.setCamera()
@@ -65,7 +70,8 @@ class MyApp(ShowBase):
                                              "Spaceship","./Assets/Spaceships/theBorg/theBorg.x",  
                                              "./Assets/Spaceships/theBorg/small_space_ship_2_color.jpg", 
                                              (0,0,0), (0,0,0), (0.75),
-                                             self.taskMgr, self.render, self.accept) 
+                                             self.taskMgr, self.render, self.accept, 
+                                             self.cTrav) 
         
         fullCycle = 60 #Controls num drones to spawn
         for i in range(fullCycle): #Populates drones
@@ -74,6 +80,7 @@ class MyApp(ShowBase):
             self.DrawBaseballSeams(self.Planet4, i, fullCycle)
             
             circlePosition = i / float(fullCycle)
+            #FIXME: Overlap in hitboxes for the space station
             self.DrawXYRing(self.SpaceStation, circlePosition, 50)
             self.DrawYZRing(self.SpaceStation, circlePosition, 50)
             self.DrawXZRing(self.SpaceStation, circlePosition, 50)
@@ -131,9 +138,6 @@ class MyApp(ShowBase):
         return nickName
     
     def setCollisions(self):    
-        self.cTrav = CollisionTraverser()
-        self.cTrav.traverse(self.render)
-        self.pusher = CollisionHandlerPusher() #Creates pusher for when two objects touch
         self.pusher.addCollider(self.Player.collisionNode, self.Player.modelNode)
         self.cTrav.add_collider(self.Player.collisionNode,self.pusher)
         self.cTrav.show_collisions(self.render) #makes collisions visible

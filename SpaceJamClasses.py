@@ -2,15 +2,18 @@
 Highest level classes for SpaceJam.
 """
 
+import re
+#import math
+
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import *
 from direct.task import Task
-
-from CollideObjectBase import *
-
+from direct.interval.LerpInterval import LerpFunc
+from direct.particles.ParticleEffect import ParticleEffect
 from typing import Callable
 
-#import math
+from CollideObjectBase import *
+from panda3d.core import *
+
 
 class Universe(InverseSphereCollideObj):
     def __init__(self,
@@ -74,14 +77,14 @@ class Drone(CapsuleCollidableObject):
         self.modelNode.setHpr(hpr) 
         self.modelNode.setScale(scaleVec)      
 
-
 class Player(CapsuleCollidableObject):
     def __init__(self,
                  loader: Loader, parentNode: NodePath,
                  nodeName: str, modelPath: str,   
                  texPath: str, 
                  posVec: Vec3, hpr: Vec3, scaleVec: float,
-                 taskMgr: Task, renderer: NodePath, accept: Callable[[str, Callable], None]):
+                 taskMgr: Task, renderer: NodePath, accept: Callable[[str, Callable], None], 
+                 traverser: CollisionTraverser):
 
         super(Player, self).__init__(loader, parentNode, nodeName, modelPath, 0, 0, 5, 0, 0, 4, 15) 
         
@@ -96,14 +99,132 @@ class Player(CapsuleCollidableObject):
         self.loader = loader
         self.accept = accept
         
-        self.turnRate = 0.5
+        self.traverser = traverser
+        self.handler = CollisionHandlerEvent()
+        
         self.reloadTime = 0.25
         self.missileDistance = 4000
         self.missileBay = 1 #Num missiles that can be launched at one time
-        
         self.taskManager.add(self.checkIntervals, "checkMissiles", 34)
         
+        self.explosionCount = 0 #num explosion particles
+        self.explodeIntervals = {}
+        
+        #ads logic to detect missile collisions
+        self.handler.addInPattern("into")
+        self.accept("into", self.handleInto)
+        
+        self.turnRate = 0.5
         self.setKeybinds()
+        self.setParicles()
+    def handleInto(self, entry):
+        pattern = r"[0-9]" #used to remove numberic charachters from string
+        
+        fromNode = entry.getFromNodePath().getName()
+        intoNode = entry.getIntoNodePath().getName()
+        intoPosition = Vec3(entry.getSurfacePoint(self.render))
+        
+        tempVar = fromNode.split("_")
+        shooter = tempVar[0]
+        
+        tempVar = intoNode.split("-")
+        tempVar = intoNode.split("_")
+        victim = tempVar[0]
+        strippedStr = re.sub(pattern, "", victim)
+
+        print(f"fromNode: {fromNode}")
+        print(f"intoNode: {intoNode}")
+        
+        if (strippedStr == "Drone"):
+            print(f"{shooter} is DONE.")
+            print(f"{victim} hit at {intoPosition}")
+            Missile.intervals[shooter].finish() #FIXME: COndense to one line?
+            self.droneDestroy(victim, intoPosition)
+        else:
+            Missile.intervals[shooter].finish()
+        
+    def droneDestroy(self, hitId, hitPosition):
+        nodeID = self.render.find(hitId) #FIXME: Possible issue with string drone names?
+        nodeID.detachNode()
+        
+        self.explodeNode.setPos(hitPosition)
+        self.explode(hitPosition)
+        
+    def explode(self, impactPoint):
+        self.explosionCount += 1
+        tag = f"particles-{str(self.explosionCount)}"
+        
+        self.explodeIntervals[tag] = LerpFunc(self.explodeLight, fromData=0, toData=1, duration=4.0, extraArgs = [impactPoint]) 
+        #Above Builds animation for explosion
+        self.explodeIntervals[tag].start()
+    
+    def explodeLight(self, time, explodePosition):
+        if (time == 1.0 and self.explodeEffect):
+            self.explodeEffect.disable()
+        elif time == 0:
+            self.explodeEffect.start(self.explodeNode)
+            
+    def setParicles(self):
+        base.enableParticles()
+        self.explodeEffect = ParticleEffect()
+        self.explodeEffect.loadConfig("./Assets/Part-Efx/basic_xpld_efx.ptf")
+        self.explodeEffect.setScale(20)
+        self.explodeNode = self.render.attachNewNode("ExplosionEffects")
+        
+        
+    def fire(self):
+        if self.missileBay:
+            travelRate = self.missileDistance #might be able to remove
+            aim = self.render.getRelativeVector(self.modelNode, Vec3.forward()) #can condense with trajectory from ship call
+            aim.normalize()
+            fireSolution = aim * travelRate
+            inFront = aim * 150 #needed to make missile look like it's firing from the front of the ship
+            travelVec = fireSolution + self.modelNode.getPos() #FIXME: COuld getPos() fix my relative movement issues?
+            
+            self.missileBay -= 1
+            tag = "missile " + str(Missile.missileCount)    
+            posVec = self.modelNode.getPos() + inFront #spawns missile in front of the spaceship
+            #FIXME: Move above line up? Test at end to ensure no issues
+            
+            CurrentMissile = Missile(self.loader, self.render, tag, "./Assets/Phaser/phaser.egg", posVec, 4.0)
+            self.traverser.addCollider(CurrentMissile.collisionNode, self.handler)
+            
+            Missile.intervals[tag] = CurrentMissile.modelNode.posInterval(2.0, travelVec, startPos = posVec, fluid = 1) #fluid = 1 checks for collisions b/t frames
+            Missile.intervals[tag].start()
+            
+            
+        else:
+            if not self.taskManager.hasTaskNamed("reload"):
+                print("init reload..." )
+                self.taskManager.doMethodLater(0, self.reload, 'reload')   
+                return Task.cont
+            
+    def reload(self, task):
+        if task.time > self.reloadTime:
+            self.missileBay += 1
+            print("Reload complete")
+            
+            if self.missileBay > 1:
+                self.missileBay = 1
+            
+            return Task.done
+        
+        elif task.time <= self.reloadTime:
+            print("reload processing....")
+            return Task.cont
+            
+    def checkIntervals(self, task):
+        for i in Missile.intervals:
+            if not Missile.intervals[i].isPlaying():
+                Missile.cNodes[i].detachNode()
+                Missile.fireModels[i].detachNode()
+                del Missile.intervals[i]
+                del Missile.fireModels[i]
+                del Missile.cNodes[i]
+                del Missile.collisionSolids[i]
+                print(i + " Has reached end of fire solution.")
+                break
+        return Task.cont
 
     def setKeybinds(self): 
         self.accept("space", self.thrust, [1])
@@ -188,52 +309,6 @@ class Player(CapsuleCollidableObject):
         self.modelNode.setFluidPos(self.modelNode.getPos() + trajectory * shipSpeed) #controls movement itself
         return Task.cont
     
-    def fire(self):
-        if self.missileBay:
-            travelRate = self.missileDistance #might be able to remove
-            aim = self.render.getRelativeVector(self.modelNode, Vec3.forward()) #can condense with trajectory from ship call
-            aim.normalize()
-            fireSolution = aim * travelRate
-            inFront = aim * 150 #needed to make missile look like it's firing from the front of the ship
-            travelVec = fireSolution + self.modelNode.getPos() #FIXME: COuld getPos() fix my relative movement issues?
-            self.missileBay -= 1
-            tag = "missile " + str(Missile.missileCount)    
-            posVec = self.modelNode.getPos() + inFront #spawns missile in front of the spaceship
-            currentMissile = Missile(self.loader, self.render, tag, "./Assets/Phaser/phaser.egg", posVec, 4.0)
-            Missile.intervals[tag] = currentMissile.modelNode.posInterval(2.0, travelVec, startPos = posVec, fluid = 1) #fluid = 1 checks for collisions b/t frames
-            Missile.intervals[tag].start()
-        else:
-            if not self.taskManager.hasTaskNamed("reload"):
-                print("init reload..." )
-                self.taskManager.doMethodLater(0, self.reload, 'reload')   
-                return Task.cont
-            
-    def reload(self, task):
-        if task.time > self.reloadTime:
-            self.missileBay += 1
-            print("Reload complete")
-            
-            if self.missileBay > 1:
-                self.missileBay = 1
-            
-            return Task.done
-        
-        elif task.time <= self.reloadTime:
-            print("reload processing....")
-            return Task.cont
-            
-    def checkIntervals(self, task):
-        for i in Missile.intervals:
-            if not Missile.intervals[i].isPlaying():
-                Missile.cNodes[i].detachNode()
-                Missile.fireModels[i].detachNode()
-                del Missile.intervals[i]
-                del Missile.fireModels[i]
-                del Missile.cNodes[i]
-                del Missile.collisionSolids[i]
-                print(i + " Has reached end of fire solution.")
-                break
-        return Task.cont
     #FIXME: Old methods for relative direction error at odd angles. Scraped for now, might try to reimplement later. 
     """
     def applyLeftTurn(self, task):
@@ -293,7 +368,7 @@ class Player(CapsuleCollidableObject):
         
         return cordinateList
     """
-   
+
     #OLD METHODS FOR TURNING
     def applyLeftTurn(self, task):
         self.modelNode.setH(self.modelNode.getH() + self.turnRate)
