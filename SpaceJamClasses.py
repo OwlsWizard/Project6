@@ -75,7 +75,7 @@ class Drone(CapsuleCollidableObject):
         
         self.modelNode.setPos(posVec)
         self.modelNode.setHpr(hpr) 
-        self.modelNode.setScale(scaleVec)      
+        self.modelNode.setScale(scaleVec)       
 
 class Player(CapsuleCollidableObject):
     def __init__(self,
@@ -117,6 +117,7 @@ class Player(CapsuleCollidableObject):
         self.turnRate = 0.5
         self.setKeybinds()
         self.setParicles()
+        
     def handleInto(self, entry):
         pattern = r"[0-9]" #used to remove numberic charachters from string
         
@@ -138,13 +139,11 @@ class Player(CapsuleCollidableObject):
         if (strippedStr == "Drone"):
             print(f"{shooter} is DONE.")
             print(f"{victim} hit at {intoPosition}")
-            Missile.intervals[shooter].finish() #FIXME: COndense to one line?
             self.droneDestroy(victim, intoPosition)
-        else:
-            Missile.intervals[shooter].finish()
+        Missile.intervals[shooter].finish()
         
     def droneDestroy(self, hitId, hitPosition):
-        nodeID = self.render.find(hitId) #FIXME: Possible issue with string drone names?
+        nodeID = self.render.find(hitId)
         nodeID.detachNode()
         
         self.explodeNode.setPos(hitPosition)
@@ -154,17 +153,16 @@ class Player(CapsuleCollidableObject):
         self.explosionCount += 1
         tag = f"particles-{str(self.explosionCount)}"
         
-        self.explodeIntervals[tag] = LerpFunc(self.explodeLight, fromData=0, toData=1, duration=2.0, extraArgs=[impactPoint]) 
+        self.explodeIntervals[tag] = LerpFunc(self.explodeLight, fromData=0, toData=1, duration=2.0, extraArgs=[impactPoint])
+        #shorted above animation so no secondary explosion occurs 
         #Above Builds animation for explosion
         self.explodeIntervals[tag].start()
     
-    def explodeLight(self, t, explodePosition):
-        if (t == 1.0 and self.explodeEffect): #If 1 second has passed, and there is an explosion taking place
+    def explodeLight(self, time, explodePosition):
+        if (time == 1.0 and self.explodeEffect): #If 1 second has passed, and there is an explosion taking place
             self.explodeEffect.disable()
-            print("explosion ended!")
-        elif t == 0:
+        elif time == 0:
             self.explodeEffect.start(self.explodeNode)
-            print("explosion started!")
             
     def setParicles(self):
         base.enableParticles()
@@ -173,21 +171,25 @@ class Player(CapsuleCollidableObject):
         self.explodeEffect.setScale(20)
         self.explodeNode = self.render.attachNewNode("ExplosionEffects")
         
-        
-        
     def fire(self):
         if self.missileBay:
             travelRate = self.missileDistance #might be able to remove
             aim = self.render.getRelativeVector(self.modelNode, Vec3.forward()) #can condense with trajectory from ship call
             aim.normalize()
             fireSolution = aim * travelRate
-            inFront = aim * 150 #needed to make missile look like it's firing from the front of the ship
+            inFront = aim * 150 
+            """
+            FIXME:
+            With current implementation, the missles will not blow up drones right next to the ship, 
+            as the missile will spawn past these drones. Can resize all drones to be larger than missle, or can make missile larger.
+            In either case, a problem for cleanup during final build.
+            """
             travelVec = fireSolution + self.modelNode.getPos() #FIXME: COuld getPos() fix my relative movement issues?
             
             self.missileBay -= 1
-            tag = "missile " + str(Missile.missileCount)    
+            tag = "missile " + str(Missile.missileCount)
+                
             posVec = self.modelNode.getPos() + inFront #spawns missile in front of the spaceship
-            #FIXME: Move above line up? Test at end to ensure no issues
             
             CurrentMissile = Missile(self.loader, self.render, tag, "./Assets/Phaser/phaser.egg", posVec, 4.0)
             self.traverser.addCollider(CurrentMissile.collisionNode, self.handler)

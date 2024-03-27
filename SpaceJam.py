@@ -64,7 +64,7 @@ class MyApp(ShowBase):
         
         self.SpaceStation = spaceJamClasses.SpaceStation(self.loader, self.render, 
                                                          "SpaceStation", "./Assets/SpaceStation/spaceStation.x",  "./Assets/SpaceStation/SpaceStation1_Dif2.png", 
-                                                         (-100,-100, 20), (0, 90, 0), (1)) 
+                                                         (-500,-100, 20), (0, 90, 0), (1)) 
         
         self.Player = spaceJamClasses.Player(self.loader, self.render, 
                                              "Spaceship","./Assets/Spaceships/theBorg/theBorg.x",  
@@ -80,10 +80,9 @@ class MyApp(ShowBase):
             self.DrawBaseballSeams(self.Planet4, i, fullCycle)
             
             circlePosition = i / float(fullCycle)
-            #FIXME: Overlap in hitboxes for the space station
-            self.DrawXYRing(self.SpaceStation, circlePosition, 50)
-            self.DrawYZRing(self.SpaceStation, circlePosition, 50)
-            self.DrawXZRing(self.SpaceStation, circlePosition, 50)
+            self.DrawXYRing(self.SpaceStation, circlePosition, 80)
+            self.DrawYZRing(self.SpaceStation, circlePosition, 80)
+            self.DrawXZRing(self.SpaceStation, circlePosition, 80)
                      
                      
     def DrawCloudDefense(self, centralObject, radius):
@@ -111,7 +110,7 @@ class MyApp(ShowBase):
         positionXY = unitVecXY * radius + centralObject.modelNode.getPos()
         spaceJamClasses.Drone(self.loader, self.render, 
                 droneName, "./Assets/Spaceships/DroneDefender/DroneDefender.x", "./Assets/Spaceships/DroneDefender/octotoad1_auv.png", 
-                positionXY, (0,0,0), 1)
+                positionXY, (0,0,0), 1.0)
 
     def DrawYZRing(self, centralObject, position, radius):
         droneName = self.UpdateDroneCount()
@@ -121,7 +120,7 @@ class MyApp(ShowBase):
         
         spaceJamClasses.Drone(self.loader, self.render, 
                     droneName, "./Assets/Spaceships/DroneDefender/DroneDefender.x", "./Assets/Spaceships/DroneDefender/octotoad1_auv.png", 
-                    positionYZ, (0,0,0), 1)
+                    positionYZ, (0,0,0), 1.0)
 
     def DrawXZRing(self, centralObject, position, radius):
         droneName = self.UpdateDroneCount()
@@ -130,7 +129,7 @@ class MyApp(ShowBase):
         positionXZ = unitVecXZ * radius + centralObject.modelNode.getPos()
         spaceJamClasses.Drone(self.loader, self.render, 
                     droneName, "./Assets/Spaceships/DroneDefender/DroneDefender.x", "./Assets/Spaceships/DroneDefender/octotoad1_auv.png", 
-                    positionXZ, (0,0,0), 1) 
+                    positionXZ, (0,0,0), 1.0) 
         
     def UpdateDroneCount(self):
         spaceJamClasses.Drone.droneCount += 1
